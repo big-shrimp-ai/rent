@@ -1,0 +1,1158 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Калькулятор реальной аренды | BigShrimp</title>
+  <!-- Интеграция Telegram Web Apps SDK -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    /* ==========================================================================
+       ПАЛИТРА И ПЕРЕМЕННЫЕ (ЛЕГКО МЕНЯТЬ ЦВЕТА ЗДЕСЬ)
+       ========================================================================== */
+    :root {
+      --bg-main: #F5F0E6;          /* Спокойный бежево-песочный фон */
+      --bg-card: #FFFDF9;          /* Теплый молочный для карточек */
+      --bg-muted: #EAE3D5;         /* Приглушенный беж для табов и инпутов */
+      --border-warm: #DCD2C0;      /* Мягкая кофейно-бежевая рамка */
+      
+      --text-primary: #231C18;     /* Глубокий эспрессо (вместо скучного черного) */
+      --text-secondary: #6E6259;   /* Теплый коричнево-серый для подписей */
+      --accent-brown: #8C6239;     /* Благородный коричневый для ползунка и активных элементов */
+      
+      --danger-red: #D93829;       /* Тревожный терракотово-красный для реального чека */
+      --danger-bg: #FDF0ED;        /* Мягкая подложка под блок переплаты */
+      --safe-green: #2E7D32;       /* Цвет для режима "Розовые очки" */
+      
+      --cta-bg: #231C18;           /* Контрастная кнопка перехода */
+      --cta-text: #FFFDF9;
+      
+      --radius-lg: 18px;
+      --radius-md: 12px;
+      --radius-sm: 8px;
+      --shadow-soft: 0 8px 24px rgba(35, 28, 24, 0.06);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      background-color: var(--bg-main);
+      color: var(--text-primary);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.4;
+      padding: 12px 12px calc(24px + env(safe-area-inset-bottom));
+      display: flex;
+      justify-content: center;
+      overflow-x: hidden;
+    }
+
+    .app-container {
+      width: 100%;
+      max-width: 460px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    /* ==========================================================================
+       1. КОМПАКТНЫЙ ХЕДЕР (БЕЗ ВОДЫ)
+       ========================================================================== */
+    .header-title {
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      color: var(--text-primary);
+      text-align: left;
+      padding: 4px 4px 0;
+    }
+
+    .header-title span {
+      color: var(--danger-red);
+      text-decoration: underline;
+      text-decoration-thickness: 2px;
+      text-underline-offset: 3px;
+    }
+
+    /* ==========================================================================
+       2. ЛИПКИЙ БАР: ОЖИДАНИЕ VS РЕАЛЬНОСТЬ + КРАШ-ТЕСТ
+       ========================================================================== */
+    .sticky-dashboard {
+      position: sticky;
+      top: 8px;
+      z-index: 100;
+      background: var(--bg-card);
+      border: 1px solid var(--border-warm);
+      border-radius: var(--radius-lg);
+      padding: 14px;
+      box-shadow: 0 12px 28px rgba(35, 28, 24, 0.12);
+      transition: transform 0.2s ease, border-color 0.3s ease;
+    }
+
+    .sticky-dashboard.shake {
+      animation: shakeAnim 0.35s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+      border-color: var(--danger-red);
+    }
+
+    @keyframes shakeAnim {
+      10%, 90% { transform: translate3d(-2px, 0, 0); }
+      20%, 80% { transform: translate3d(3px, 0, 0); }
+      30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+      40%, 60% { transform: translate3d(4px, 0, 0); }
+    }
+
+    /* Переключатель краш-теста */
+    .mode-switch {
+      display: flex;
+      background: var(--bg-muted);
+      border-radius: var(--radius-sm);
+      padding: 3px;
+      margin-bottom: 12px;
+    }
+
+    .mode-btn {
+      flex: 1;
+      border: none;
+      background: transparent;
+      padding: 7px 6px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .mode-btn.active-pink {
+      background: var(--bg-card);
+      color: var(--safe-green);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    }
+
+    .mode-btn.active-reality {
+      background: var(--danger-red);
+      color: #FFF;
+      box-shadow: 0 2px 8px rgba(217, 56, 41, 0.3);
+    }
+
+    /* Полосы сравнения */
+    .bars-wrapper {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .bar-row {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .bar-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .bar-track {
+      width: 100%;
+      height: 10px;
+      background: var(--bg-muted);
+      border-radius: 99px;
+      overflow: hidden;
+    }
+
+    .bar-fill-expect {
+      height: 100%;
+      background: #9E9388;
+      border-radius: 99px;
+      transition: width 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .bar-fill-reality {
+      height: 100%;
+      background: var(--danger-red);
+      border-radius: 99px;
+      transition: width 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.3s;
+    }
+
+    .price-expect {
+      color: var(--text-secondary);
+      font-weight: 700;
+    }
+
+    .price-reality {
+      color: var(--danger-red);
+      font-size: 17px;
+      font-weight: 800;
+    }
+
+    .overpay-badge {
+      margin-top: 10px;
+      background: var(--danger-bg);
+      color: var(--danger-red);
+      padding: 8px 10px;
+      border-radius: var(--radius-sm);
+      font-size: 12.5px;
+      font-weight: 700;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* Живой комментатор (Roast Ticker) */
+    .roast-box {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px dashed var(--border-warm);
+      font-size: 12.5px;
+      color: var(--text-primary);
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    .roast-avatar {
+      font-size: 16px;
+      line-height: 1;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    /* ==========================================================================
+       3. КАРТОЧКА УПРАВЛЕНИЯ (ТАБЫ, ПОЛЗУНОК, ТУМБЛЕРЫ)
+       ========================================================================== */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-warm);
+      border-radius: var(--radius-lg);
+      padding: 16px;
+      box-shadow: var(--shadow-soft);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .control-label {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* Segmented Controls (Страна и Сезон) */
+    .segmented-control {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      background: var(--bg-muted);
+      padding: 4px;
+      border-radius: var(--radius-md);
+      gap: 4px;
+    }
+
+    .segmented-control.two-cols {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .seg-btn {
+      border: none;
+      background: transparent;
+      padding: 10px 6px;
+      font-size: 13.5px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      border-radius: 9px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+    }
+
+    .seg-btn.active {
+      background: var(--bg-card);
+      color: var(--text-primary);
+      box-shadow: 0 2px 8px rgba(35, 28, 24, 0.08);
+    }
+
+    /* Ползунок + Ручной ввод */
+    .rent-input-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .rent-slider {
+      flex: 1;
+      -webkit-appearance: none;
+      appearance: none;
+      height: 8px;
+      background: var(--bg-muted);
+      border-radius: 99px;
+      outline: none;
+    }
+
+    .rent-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: var(--accent-brown);
+      border: 3px solid var(--bg-card);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+      cursor: pointer;
+    }
+
+    .number-input-wrap {
+      position: relative;
+      width: 105px;
+      flex-shrink: 0;
+    }
+
+    .number-input-wrap span {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-weight: 800;
+      color: var(--text-secondary);
+      font-size: 16px;
+    }
+
+    .rent-number {
+      width: 100%;
+      padding: 9px 10px 9px 24px;
+      font-size: 16px; /* 16px предотвращает авто-зум на iOS */
+      font-weight: 800;
+      color: var(--text-primary);
+      background: var(--bg-muted);
+      border: 1px solid var(--border-warm);
+      border-radius: var(--radius-sm);
+      outline: none;
+    }
+
+    .rent-number:focus {
+      border-color: var(--accent-brown);
+      background: var(--bg-card);
+    }
+
+    /* Тумблеры (Чек-боксы опций) */
+    .toggles-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .toggle-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 11px 12px;
+      background: var(--bg-main);
+      border: 1px solid var(--border-warm);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.2s, border-color 0.2s;
+    }
+
+    .toggle-item.active {
+      background: #F9F4EB;
+      border-color: var(--accent-brown);
+    }
+
+    /* Эксклюзивный блок РБ (Прописка) */
+    .toggle-item.rb-special {
+      background: #FFF8EB;
+      border-color: #E6C891;
+    }
+
+    .toggle-item.hidden {
+      display: none;
+    }
+
+    .toggle-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding-right: 10px;
+    }
+
+    .toggle-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .toggle-sub {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .toggle-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .cost-pill {
+      font-size: 13px;
+      font-weight: 800;
+      color: var(--text-primary);
+    }
+
+    /* Кастомный iOS-свитч */
+    .switch-ui {
+      width: 44px;
+      height: 26px;
+      background: #C7BCAE;
+      border-radius: 99px;
+      position: relative;
+      transition: background 0.25s ease;
+    }
+
+    .switch-ui::after {
+      content: "";
+      position: absolute;
+      width: 22px;
+      height: 22px;
+      background: #FFF;
+      border-radius: 50%;
+      top: 2px;
+      left: 2px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .toggle-item.active .switch-ui {
+      background: var(--accent-brown);
+    }
+
+    .toggle-item.active .switch-ui::after {
+      transform: translateX(18px);
+    }
+
+    /* ==========================================================================
+       4. ЧЕК НЕИЗБЕЖНОСТИ (БАЗОВЫЕ РАСХОДЫ С АККОРДЕОНОМ)
+       ========================================================================== */
+    .receipt-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-warm);
+      border-radius: var(--radius-lg);
+      padding: 16px;
+      position: relative;
+    }
+
+    .receipt-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .receipt-title {
+      font-size: 14px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+    }
+
+    .receipt-hint {
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .receipt-row {
+      border-top: 1px dashed var(--border-warm);
+      padding: 10px 0;
+      cursor: pointer;
+    }
+
+    .receipt-main {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .receipt-note {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-top: 6px;
+      padding: 8px 10px;
+      background: var(--bg-main);
+      border-radius: var(--radius-sm);
+      display: none;
+    }
+
+    .receipt-row.open .receipt-note {
+      display: block;
+    }
+
+    /* ==========================================================================
+       5. КАПКАН ЗЕЙГАРНИК (РЭД-ФЛАГИ + АНТИ-DEVTOOLS БЛЮР)
+       ========================================================================== */
+    .trap-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-warm);
+      border-radius: var(--radius-lg);
+      padding: 16px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .trap-title {
+      font-size: 16px;
+      font-weight: 800;
+      margin-bottom: 12px;
+      color: var(--text-primary);
+    }
+
+    .flag-item {
+      font-size: 13.5px;
+      margin-bottom: 10px;
+      padding-left: 10px;
+      border-left: 3px solid var(--danger-red);
+    }
+
+    .flag-item strong {
+      color: var(--text-primary);
+    }
+
+    .blurred-zone {
+      position: relative;
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+      margin-top: 8px;
+    }
+
+    .blurred-content {
+      filter: blur(5.5px);
+      opacity: 0.65;
+      pointer-events: none;
+    }
+
+    .blur-overlay-badge {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(35, 28, 24, 0.92);
+      color: #FFFDF9;
+      padding: 8px 14px;
+      border-radius: 99px;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.2);
+    }
+
+    /* Всплывающий тост при клике на блюр */
+    .toast-popup {
+      position: fixed;
+      bottom: 85px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: #231C18;
+      color: #FFFDF9;
+      padding: 12px 16px;
+      border-radius: var(--radius-md);
+      font-size: 13px;
+      font-weight: 600;
+      width: 90%;
+      max-width: 400px;
+      text-align: center;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.25s ease;
+      z-index: 999;
+    }
+
+    .toast-popup.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* ==========================================================================
+       6. ПУЛЬСИРУЮЩИЙ CTA В TELEGRAM
+       ========================================================================== */
+    .cta-wrapper {
+      margin-top: 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      text-align: center;
+    }
+
+    .cta-button {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      width: 100%;
+      padding: 16px 18px;
+      background: var(--cta-bg);
+      color: var(--cta-text);
+      text-decoration: none;
+      font-size: 15px;
+      font-weight: 800;
+      border-radius: var(--radius-md);
+      box-shadow: 0 8px 20px rgba(35, 28, 24, 0.22);
+      position: relative;
+      overflow: hidden;
+      animation: pulseScale 2.8s infinite ease-in-out;
+    }
+
+    @keyframes pulseScale {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.022); box-shadow: 0 10px 26px rgba(217, 56, 41, 0.28); }
+    }
+
+    .cta-subtext {
+      font-size: 11.5px;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+  </style>
+</head>
+<body>
+
+  <main class="app-container">
+    <!-- 1. ХЕДЕР -->
+    <h1 class="header-title">
+      Сними <span>розовые очки</span>, а не квартиру за 2 зарплаты
+    </h1>
+
+    <!-- 2. ЛИПКИЙ ДАШБОРД СРАВНЕНИЯ + КРАШ-ТЕСТ -->
+    <section class="sticky-dashboard" id="dashboard">
+      <div class="mode-switch">
+        <button type="button" class="mode-btn" id="btnPinkMode">🌸 В моих мечтах</button>
+        <button type="button" class="mode-btn active-reality" id="btnRealityMode">🔨 Суровая реальность</button>
+      </div>
+
+      <div class="bars-wrapper">
+        <div class="bar-row">
+          <div class="bar-labels">
+            <span>Цена в объявлении:</span>
+            <span class="price-expect" id="expectPriceText">$350</span>
+          </div>
+          <div class="bar-track">
+            <div class="bar-fill-expect" id="expectBar" style="width: 35%;"></div>
+          </div>
+        </div>
+
+        <div class="bar-row">
+          <div class="bar-labels">
+            <span id="realityLabel">Реальный чек 1-го месяца:</span>
+            <span class="price-reality" id="realityPriceText">$1 090</span>
+          </div>
+          <div class="bar-track">
+            <div class="bar-fill-reality" id="realityBar" style="width: 100%;"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="overpay-badge" id="overpayBadge">
+        <span>Скрытый налог на переезд:</span>
+        <span id="overpayAmount">+$740 (+211%)</span>
+      </div>
+
+      <div class="roast-box">
+        <span class="roast-avatar">🦐</span>
+        <p id="roastText">Чтобы просто получить ключи и переступить порог, ты выложишь почти три месячных аренды сразу.</p>
+      </div>
+    </section>
+
+    <!-- 3. ПАНЕЛЬ УПРАВЛЕНИЯ КАЛЬКУЛЯТОРОМ -->
+    <section class="card">
+      <!-- Выбор страны -->
+      <div class="control-group">
+        <div class="control-label">Страна переезда</div>
+        <div class="segmented-control" id="countryControl">
+          <button type="button" class="seg-btn active" data-country="BY">🇧🇾 Беларусь</button>
+          <button type="button" class="seg-btn" data-country="KZ">🇰🇿 Казахстан</button>
+          <button type="button" class="seg-btn" data-country="RU">🇷🇺 Россия</button>
+        </div>
+      </div>
+
+      <!-- Ползунок аренды -->
+      <div class="control-group">
+        <div class="control-label">
+          <span>Стоимость аренды в месяц</span>
+          <span>USD ($)</span>
+        </div>
+        <div class="rent-input-row">
+          <input type="range" id="rentSlider" class="rent-slider" min="100" max="1500" step="10" value="350">
+          <div class="number-input-wrap">
+            <span>$</span>
+            <input type="number" id="rentInput" class="rent-number" min="50" max="10000" value="350" inputmode="numeric">
+          </div>
+        </div>
+      </div>
+
+      <!-- Сезон снятия -->
+      <div class="control-group">
+        <div class="control-label">
+          <span>Сезон (влияет на жировку ЖКХ)</span>
+          <span id="utilitiesCostBadge" style="color: var(--text-primary);">$80 / мес</span>
+        </div>
+        <div class="segmented-control two-cols" id="seasonControl">
+          <button type="button" class="seg-btn" data-season="summer">☀️ Лето</button>
+          <button type="button" class="seg-btn active" data-season="winter">❄️ Зима (Отопление)</button>
+        </div>
+      </div>
+
+      <!-- Тумблеры скрытых кастов -->
+      <div class="toggles-list">
+        <!-- Эксклюзивный чек-бокс для Беларуси -->
+        <div class="toggle-item rb-special" id="togglePropiska">
+          <div class="toggle-info">
+            <div class="toggle-title">В квартире есть прописанные</div>
+            <div class="toggle-sub" id="propiskaSub">Выключено: платишь 100% тариф ЖКХ (×2)</div>
+          </div>
+          <div class="toggle-right">
+            <span class="cost-pill" id="propiskaPill">×2 ЖКХ</span>
+            <div class="switch-ui"></div>
+          </div>
+        </div>
+
+        <!-- Агент -->
+        <div class="toggle-item active" id="toggleAgent">
+          <div class="toggle-info">
+            <div class="toggle-title">Снятие через агента / риелтора</div>
+            <div class="toggle-sub" id="agentSub">Фиксированная такса в РБ</div>
+          </div>
+          <div class="toggle-right">
+            <span class="cost-pill" id="agentPill">+$75</span>
+            <div class="switch-ui"></div>
+          </div>
+        </div>
+
+        <!-- Залог -->
+        <div class="toggle-item active" id="toggleDeposit">
+          <div class="toggle-info">
+            <div class="toggle-title">Возвратный залог хозяину</div>
+            <div class="toggle-sub">Равен 100% месячной аренды</div>
+          </div>
+          <div class="toggle-right">
+            <span class="cost-pill" id="depositPill">+$350</span>
+            <div class="switch-ui"></div>
+          </div>
+        </div>
+
+        <!-- Перевозка вещей -->
+        <div class="toggle-item active" id="toggleMoving">
+          <div class="toggle-info">
+            <div class="toggle-title">Перевозка вещей</div>
+            <div class="toggle-sub">Грузовое такси или друзьям за пиццу</div>
+          </div>
+          <div class="toggle-right">
+            <span class="cost-pill" id="movingPill">+$20</span>
+            <div class="switch-ui"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. ЧЕК НЕИЗБЕЖНОСТИ (БАЗА $235) -->
+    <section class="receipt-card">
+      <div class="receipt-header">
+        <span class="receipt-title">🔒 Неотключаемая база выживания</span>
+        <span class="receipt-hint">Нажми на пункт 👇</span>
+      </div>
+
+      <div class="receipt-row open">
+        <div class="receipt-main">
+          <span>🛒 Бытовая химия и мелочи (в среднем)</span>
+          <strong>+$40</strong>
+        </div>
+        <div class="receipt-note">
+          Парадокс первого месяца: в магазине тебе никто не продаст 1/3 пачки стирального порошка, половину ершика для унитаза или полгубки для посуды. Выложишь всю сумму в первый же день.
+        </div>
+      </div>
+
+      <div class="receipt-row">
+        <div class="receipt-main">
+          <span>🍝 Продукты и домашний интернет</span>
+          <strong>+$170</strong>
+        </div>
+        <div class="receipt-note">
+          Базовая корзина еды на месяц плюс оплата роутера и тарифа. В пустом холодильнике даже кетчупа и соли нет — закупать придется с нуля.
+        </div>
+      </div>
+
+      <div class="receipt-row">
+        <div class="receipt-main">
+          <span>🚇 Проездной на месяц</span>
+          <strong>+$25</strong>
+        </div>
+        <div class="receipt-note">
+          Тариф для бездельников или очень экономных. Если привык ездить на работу или пары на такси — смело умножай эту цифру вчетверо.
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. КАПКАН ЗЕЙГАРНИК (РЭД-ФЛАГИ С ЗАЩИТОЙ ОТ DEVTOOLS) -->
+    <section class="trap-card">
+      <h2 class="trap-title">⚠️ Как не подарить хозяину залог при выезде:</h2>
+
+      <div class="flag-item">
+        <strong>1. Акт приема без фотофиксации:</strong> если не сфоткал вздутый ламинат и сколы на плитке в день заезда — оплатишь хозяину капремонт из своего залога.
+      </div>
+
+      <div class="flag-item">
+        <strong>2. Ловушка «коммуналка включена»:</strong> почему фиксированный платеж зимой превращается в скандал и требование доплатить...
+      </div>
+
+      <!-- Блок с троллинг-рыбой в верстке против DevTools -->
+      <div class="blurred-zone" id="blurredZone">
+        <div class="blurred-content">
+          <div class="flag-item">
+            <strong>3. Секретный пункт договора:</strong> Хорошая попытка, хакер. Я сам проверял этот код перед деплоем. Настоящий список ред-флагов лежит в Телеграме, жми кнопку ниже и не душни.
+          </div>
+          <div class="flag-item">
+            <strong>4. Схема со счетчиками:</strong> Серьезно, закрой инспектор кода и перейди в канал, там это разобрано человеческим языком со скринами договоров.
+          </div>
+        </div>
+        <div class="blur-overlay-badge">🔒 Еще 3 фатальные ошибки скрыты</div>
+      </div>
+    </section>
+
+    <!-- 6. ТЕРМИНАЛЬНЫЙ CTA -->
+    <div class="cta-wrapper">
+      <!-- ЗАМЕНИ ССЫЛКУ НИЖЕ НА СВОЙ TELEGRAM-КАНАЛ -->
+      <a href="https://t.me/your_channel_here" target="_blank" rel="noopener" class="cta-button" id="ctaButton">
+        Спасти свои $740 в Telegram →
+      </a>
+      <span class="cta-subtext">Чек-лист проверки квартиры и разбор договора уже в закрепе</span>
+    </div>
+  </main>
+
+  <!-- Всплывающий тост -->
+  <div class="toast-popup" id="toastPopup">
+    Хорошая попытка, бро 🦐 Полный список рэд-флагов ждет в Telegram — жми кнопку внизу!
+  </div>
+
+  <script>
+    (function() {
+      // Пасхалка для тех, кто открыл консоль F12
+      console.log(
+        "%c🦐 Хорошая попытка, хакер! Я сам проверял этот код перед деплоем. Настоящий список рэд-флагов лежит в Телеграме — закрывай DevTools и жми кнопку!",
+        "color: #D93829; font-size: 16px; font-weight: bold; background: #F5F0E6; padding: 8px; border-radius: 6px;"
+      );
+
+      // Инициализация Telegram Web App (если открыто внутри ТГ)
+      const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+      if (tg) {
+        tg.ready();
+        tg.expand();
+      }
+
+      function triggerHaptic() {
+        if (tg && tg.HapticFeedback) {
+          tg.HapticFeedback.impactOccurred('light');
+        } else if (navigator.vibrate) {
+          navigator.vibrate(25);
+        }
+      }
+
+      // Тарифная сетка коммуналки
+      const UTILITIES_RATES = {
+        BY: { summer: 25, winter: 40 },
+        RU: { summer: 40, winter: 75 },
+        KZ: { summer: 35, winter: 60 }
+      };
+
+      const FIXED_SURVIVAL_BASE = 235; // 170 (еда/инет) + 40 (быт) + 25 (проездной)
+
+      // Состояние приложения (Default Bias: максимум боли на старте)
+      const state = {
+        country: 'BY',
+        season: 'winter',
+        rent: 350,
+        hasPropiska: false, // В РБ по дефолту прописки нет -> коммуналка x2
+        hasAgent: true,
+        hasDeposit: true,
+        hasMoving: true,
+        pinkGlassesMode: false
+      };
+
+      // DOM-элементы
+      const dashboard = document.getElementById('dashboard');
+      const btnPinkMode = document.getElementById('btnPinkMode');
+      const btnRealityMode = document.getElementById('btnRealityMode');
+      const expectPriceText = document.getElementById('expectPriceText');
+      const realityPriceText = document.getElementById('realityPriceText');
+      const realityLabel = document.getElementById('realityLabel');
+      const expectBar = document.getElementById('expectBar');
+      const realityBar = document.getElementById('realityBar');
+      const overpayAmount = document.getElementById('overpayAmount');
+      const roastText = document.getElementById('roastText');
+
+      const rentSlider = document.getElementById('rentSlider');
+      const rentInput = document.getElementById('rentInput');
+      const utilitiesCostBadge = document.getElementById('utilitiesCostBadge');
+
+      const togglePropiska = document.getElementById('togglePropiska');
+      const propiskaSub = document.getElementById('propiskaSub');
+      const propiskaPill = document.getElementById('propiskaPill');
+
+      const toggleAgent = document.getElementById('toggleAgent');
+      const agentSub = document.getElementById('agentSub');
+      const agentPill = document.getElementById('agentPill');
+
+      const toggleDeposit = document.getElementById('toggleDeposit');
+      const depositPill = document.getElementById('depositPill');
+
+      const toggleMoving = document.getElementById('toggleMoving');
+      const movingPill = document.getElementById('movingPill');
+
+      const ctaButton = document.getElementById('ctaButton');
+      const blurredZone = document.getElementById('blurredZone');
+      const toastPopup = document.getElementById('toastPopup');
+
+      // Валидация и очистка ввода аренды
+      function sanitizeRent(val) {
+        let parsed = parseInt(val, 10);
+        if (isNaN(parsed) || parsed < 50) return 50;
+        if (parsed > 10000) return 10000;
+        return parsed;
+      }
+
+      // Расчет всех метрик
+      function calculate() {
+        const R = state.rent;
+
+        // 1. Коммуналка
+        let baseUtil = UTILITIES_RATES[state.country][state.season];
+        let utilMultiplier = (state.country === 'BY' && !state.hasPropiska) ? 2 : 1;
+        let finalUtil = baseUtil * utilMultiplier;
+
+        // 2. Агент
+        let agentFee = 0;
+        if (state.country === 'BY') {
+          agentFee = 75;
+          agentSub.textContent = 'Фиксированная такса по Беларуси';
+        } else if (state.country === 'KZ') {
+          agentFee = Math.round(R * 0.20);
+          agentSub.textContent = 'Комиссия 20% от стоимости аренды';
+        } else if (state.country === 'RU') {
+          agentFee = Math.round(R * 0.50);
+          agentSub.textContent = 'Комиссия 50% от стоимости аренды';
+        }
+        let activeAgentFee = state.hasAgent ? agentFee : 0;
+
+        // 3. Залог и Перевозка
+        let activeDeposit = state.hasDeposit ? R : 0;
+        let activeMoving = state.hasMoving ? 20 : 0;
+
+        // Итоговый чек
+        let totalReal = R + finalUtil + activeAgentFee + activeDeposit + activeMoving + FIXED_SURVIVAL_BASE;
+        let overpay = totalReal - R;
+        let overpayPercent = Math.round((overpay / R) * 100);
+
+        // Обновление UI пилюль
+        utilitiesCostBadge.textContent = `$${finalUtil} / мес`;
+        agentPill.textContent = state.hasAgent ? `+$${agentFee}` : '$0';
+        depositPill.textContent = state.hasDeposit ? `+$${R}` : '$0';
+        movingPill.textContent = state.hasMoving ? '+$20' : '$0';
+
+        // Показ/скрытие прописки для РБ
+        if (state.country === 'BY') {
+          togglePropiska.classList.remove('hidden');
+          if (state.hasPropiska) {
+            togglePropiska.classList.add('active');
+            propiskaSub.textContent = 'Льготный тариф ЖКХ (прописан жилец)';
+            propiskaPill.textContent = '×1 ЖКХ';
+          } else {
+            togglePropiska.classList.remove('active');
+            propiskaSub.textContent = 'Никто не прописан: 100% тариф ЖКХ (×2)';
+            propiskaPill.textContent = '×2 ЖКХ';
+          }
+        } else {
+          togglePropiska.classList.add('hidden');
+        }
+
+        // Отображение в зависимости от режима Краш-теста
+        expectPriceText.textContent = `$${R.toLocaleString('ru-RU')}`;
+
+        if (state.pinkGlassesMode) {
+          realityLabel.textContent = 'В розовых очках (только аренда):';
+          realityPriceText.textContent = `$${R.toLocaleString('ru-RU')}`;
+          realityPriceText.style.color = 'var(--safe-green)';
+          realityBar.style.backgroundColor = 'var(--safe-green)';
+          expectBar.style.width = '100%';
+          realityBar.style.width = '100%';
+          overpayAmount.textContent = '$0 (Иллюзия комфорта)';
+          roastText.textContent = 'Режим маминого оптимиста включен: ты искренне веришь, что залог не попросят, еда появится в холодильнике сама, а риелтор работает за спасибо.';
+        } else {
+          realityLabel.textContent = 'Реальный чек 1-го месяца:';
+          realityPriceText.textContent = `$${totalReal.toLocaleString('ru-RU')}`;
+          realityPriceText.style.color = 'var(--danger-red)';
+          realityBar.style.backgroundColor = 'var(--danger-red)';
+
+          let expectRatio = Math.max(15, Math.min(100, Math.round((R / totalReal) * 100)));
+          expectBar.style.width = `${expectRatio}%`;
+          realityBar.style.width = '100%';
+          overpayAmount.textContent = `+$${overpay.toLocaleString('ru-RU')} (+${overpayPercent}%)`;
+
+          // Генерация живого саркастичного комментария
+          if (R < 200) {
+            roastText.textContent = 'За такую цену аренды это либо комната с бабкой-экзорцистом, либо обои держатся на плесени. Но даже тут стартовый чек кусается.';
+          } else if (state.country === 'RU' && state.hasAgent && state.hasDeposit) {
+            roastText.textContent = `Аренда + Залог 100% + Риелтор 50%: ты отдаешь $${(R + activeDeposit + activeAgentFee)} в первый же день просто за право переступить порог.`;
+          } else if (state.country === 'BY' && !state.hasPropiska && state.season === 'winter') {
+            roastText.textContent = 'Зима в РБ без прописанных в хате — это двойная жировка за отопление. Проверяй лицевой счет до подписания договора!';
+          } else if (totalReal >= 1200) {
+            roastText.textContent = `Почти $${totalReal} за первый месяц самостоятельной жизни. На этом этапе дешевле жить в отеле или жениться по расчету.`;
+          } else {
+            roastText.textContent = `Твои ожидания занижены на $${overpay}. И это если ты не купишь в первый месяц ни одной сковородки или шторы.`;
+          }
+        }
+
+        // Персонализация финальной кнопки Telegram
+        ctaButton.textContent = `Как не потерять часть из этих $${overpay} в Telegram →`;
+      }
+
+      function shakeDashboard() {
+        dashboard.classList.remove('shake');
+        void dashboard.offsetWidth; // Reflow
+        dashboard.classList.add('shake');
+      }
+
+      // Слушатели: Страна
+      document.querySelectorAll('#countryControl .seg-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          triggerHaptic();
+          document.querySelectorAll('#countryControl .seg-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          state.country = btn.getAttribute('data-country');
+          calculate();
+          shakeDashboard();
+        });
+      });
+
+      // Слушатели: Сезон
+      document.querySelectorAll('#seasonControl .seg-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          triggerHaptic();
+          document.querySelectorAll('#seasonControl .seg-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          state.season = btn.getAttribute('data-season');
+          calculate();
+        });
+      });
+
+      // Слушатели: Ползунок и Числовой инпут
+      rentSlider.addEventListener('input', (e) => {
+        state.rent = sanitizeRent(e.target.value);
+        rentInput.value = state.rent;
+        calculate();
+      });
+
+      rentInput.addEventListener('input', (e) => {
+        if (e.target.value === '') return;
+        let val = parseInt(e.target.value, 10);
+        if (!isNaN(val) && val >= 50 && val <= 10000) {
+          state.rent = val;
+          rentSlider.value = Math.min(1500, Math.max(100, val));
+          calculate();
+        }
+      });
+
+      rentInput.addEventListener('blur', (e) => {
+        state.rent = sanitizeRent(e.target.value);
+        rentInput.value = state.rent;
+        rentSlider.value = Math.min(1500, Math.max(100, state.rent));
+        calculate();
+      });
+
+      // Слушатели: Тумблеры
+      togglePropiska.addEventListener('click', () => {
+        triggerHaptic();
+        state.hasPropiska = !state.hasPropiska;
+        calculate();
+      });
+
+      toggleAgent.addEventListener('click', () => {
+        triggerHaptic();
+        state.hasAgent = !state.hasAgent;
+        toggleAgent.classList.toggle('active', state.hasAgent);
+        calculate();
+      });
+
+      toggleDeposit.addEventListener('click', () => {
+        triggerHaptic();
+        state.hasDeposit = !state.hasDeposit;
+        toggleDeposit.classList.toggle('active', state.hasDeposit);
+        calculate();
+        if (state.hasDeposit) shakeDashboard();
+      });
+
+      toggleMoving.addEventListener('click', () => {
+        triggerHaptic();
+        state.hasMoving = !state.hasMoving;
+        toggleMoving.classList.toggle('active', state.hasMoving);
+        calculate();
+      });
+
+      // Слушатели: Режим Краш-теста ("Розовые очки" vs "Реальность")
+      btnPinkMode.addEventListener('click', () => {
+        triggerHaptic();
+        state.pinkGlassesMode = true;
+        btnPinkMode.classList.add('active-pink');
+        btnRealityMode.classList.remove('active-reality');
+        calculate();
+      });
+
+      btnRealityMode.addEventListener('click', () => {
+        triggerHaptic();
+        state.pinkGlassesMode = false;
+        btnRealityMode.classList.add('active-reality');
+        btnPinkMode.classList.remove('active-pink');
+        calculate();
+        shakeDashboard();
+      });
+
+      // Аккордеоны в "Чеке неизбежности"
+      document.querySelectorAll('.receipt-row').forEach(row => {
+        row.addEventListener('click', () => {
+          triggerHaptic();
+          row.classList.toggle('open');
+        });
+      });
+
+      // Клик по размытому блоку Зейгарник
+      let toastTimeout;
+      blurredZone.addEventListener('click', () => {
+        triggerHaptic();
+        toastPopup.classList.add('show');
+        clearTimeout(toastTimeout);
+        toastTimeout = setTimeout(() => {
+          toastPopup.classList.remove('show');
+        }, 3200);
+      });
+
+      // Первичный рендер
+      calculate();
+    })();
+  </script>
+</body>
+</html>
