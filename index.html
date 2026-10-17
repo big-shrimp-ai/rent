@@ -26,6 +26,28 @@
       
       --cta-bg: #362d27;           /* Контрастная кнопка перехода */
       --cta-text: #FFFDF9;
+
+      /* ВАРИАНТ 1: Глубокий хвойно-изумрудный (Максимальный контраст к красной шкале) */
+      --btn-grad: linear-gradient(135deg, #133E2F 0%, #216B52 50%, #0E3024 100%);
+      --btn-glow-soft: rgba(33, 107, 82, 0.42);
+      --btn-glow-peak: rgba(33, 107, 82, 0.65);
+      --btn-ring: rgba(42, 138, 105, 0.55);
+
+      /* ВАРИАНТ 2: Obsidian Espresso & Gold (Премиальный кофейный с янтарным свечением) */
+      /*
+      --btn-grad: linear-gradient(135deg, #1A130F 0%, #362820 50%, #140E0B 100%);
+      --btn-glow-soft: rgba(184, 134, 55, 0.38);
+      --btn-glow-peak: rgba(204, 148, 58, 0.62);
+      --btn-ring: rgba(212, 160, 72, 0.55);
+      */
+
+      /* ВАРИАНТ 3: Warm Prussian Indigo (Благородный чернильно-сапфировый под Telegram) */
+      /*
+      --btn-grad: linear-gradient(135deg, #162C4E 0%, #264B82 50%, #10213B 100%);
+      --btn-glow-soft: rgba(38, 75, 130, 0.40);
+      --btn-glow-peak: rgba(38, 75, 130, 0.65);
+      --btn-ring: rgba(54, 102, 173, 0.55);
+      */
       
       --radius-lg: 18px;
       --radius-md: 12px;
@@ -646,13 +668,13 @@
       align-items: center;
       width: 100%;
       padding: 17px 18px;
-      background: linear-gradient(135deg, #9E2A22 0%, #D44632 50%, #8C211A 100%);
+      background: var(--btn-grad);
       color: #FFFDF9;
       text-decoration: none;
       font-size: 15.5px;
       font-weight: 800;
       border-radius: var(--radius-md);
-      border: 1px solid rgba(255, 235, 215, 0.25);
+      border: 1px solid rgba(255, 245, 225, 0.25);
       position: relative;
       overflow: hidden;
       animation: pulseWarm 1.9s infinite cubic-bezier(0.4, 0, 0.2, 1);
@@ -669,21 +691,22 @@
       background: linear-gradient(
         to right,
         rgba(255, 253, 249, 0) 0%,
-        rgba(255, 240, 210, 0.38) 50%,
+        rgba(255, 242, 215, 0.38) 50%,
         rgba(255, 253, 249, 0) 100%
       );
       transform: rotate(25deg);
       animation: shimmerSweep 3.2s infinite;
     }
 
+    /* Свечение и пульсация автоматически подхватывают цвет выбранного варианта */
     @keyframes pulseWarm {
       0%, 100% {
         transform: scale(1);
-        box-shadow: 0 6px 20px rgba(184, 51, 42, 0.35), 0 0 0 0 rgba(212, 70, 50, 0.55);
+        box-shadow: 0 6px 20px var(--btn-glow-soft), 0 0 0 0 var(--btn-ring);
       }
       50% {
         transform: scale(1.038);
-        box-shadow: 0 12px 28px rgba(184, 51, 42, 0.55), 0 0 0 10px rgba(212, 70, 50, 0);
+        box-shadow: 0 12px 28px var(--btn-glow-peak), 0 0 0 10px rgba(0, 0, 0, 0);
       }
     }
 
@@ -1081,6 +1104,10 @@
         // Отображение в зависимости от режима Краш-теста
         expectPriceText.textContent = `$${R.toLocaleString('ru-RU')}`;
 
+        // Находим родительский трек полосы реальности для изменения его толщины
+        const realityTrack = realityBar.parentElement;
+        const overpayBadge = document.getElementById('overpayBadge');
+        
         if (state.pinkGlassesMode) {
           realityLabel.textContent = 'В розовых очках (только аренда):';
           realityPriceText.textContent = `$${R.toLocaleString('ru-RU')}`;
