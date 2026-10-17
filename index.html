@@ -24,7 +24,7 @@
       --danger-bg: #FDF0ED;        /* Мягкая подложка под блок переплаты */
       --safe-green: #2E7D32;       /* Цвет для режима "Розовые очки" */
       
-      --cta-bg: #231C18;           /* Контрастная кнопка перехода */
+      --cta-bg: #362d27;           /* Контрастная кнопка перехода */
       --cta-text: #FFFDF9;
       
       --radius-lg: 18px;
@@ -540,15 +540,30 @@
       cursor: pointer;
       user-select: none;
       -webkit-user-select: none;
-      margin-top: 8px;
+      margin-top: 10px;
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      padding: 6px;
+      background: rgba(220, 210, 192, 0.25);
     }
 
     .blurred-content {
-      filter: blur(5.5px);
+      filter: blur(7px) contrast(1.1);
       opacity: 0.65;
       pointer-events: none;
+      transition: filter 0.2s ease;
     }
 
+    /* Канвас с мерцающими частицами как в Telegram */
+    #tgSpoilerCanvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 2;
+    }
+    
     .blur-overlay-badge {
       position: absolute;
       top: 50%;
@@ -556,12 +571,14 @@
       transform: translate(-50%, -50%);
       background: rgba(35, 28, 24, 0.92);
       color: #FFFDF9;
-      padding: 8px 14px;
+      padding: 9px 16px;
       border-radius: 99px;
-      font-size: 12px;
-      font-weight: 700;
+      font-size: 12.5px;
+      font-weight: 800;
       white-space: nowrap;
-      box-shadow: 0 4px 14px rgba(0,0,0,0.2);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.28);
+      z-index: 3;
+      border: 1px solid rgba(255, 255, 255, 0.15);
     }
 
     /* Всплывающий тост при клике на блюр */
@@ -607,19 +624,53 @@
       justify-content: center;
       align-items: center;
       width: 100%;
-      padding: 16px 18px;
-      background: var(--cta-bg);
-      color: var(--cta-text);
+      padding: 17px 18px;
+      background: linear-gradient(135deg, #0088CC 0%, #1D9BF0 50%, #0077B5 100%);
+      color: #FFFFFF;
       text-decoration: none;
-      font-size: 15px;
+      font-size: 15.5px;
       font-weight: 800;
       border-radius: var(--radius-md);
-      box-shadow: 0 8px 20px rgba(35, 28, 24, 0.22);
+      box-shadow: 0 8px 24px rgba(0, 136, 204, 0.45);
       position: relative;
       overflow: hidden;
-      animation: pulseScale 2.8s infinite ease-in-out;
+      animation: pulseScale 1.9s infinite cubic-bezier(0.4, 0, 0.2, 1);
     }
 
+    /* Пробегающий световой блик по кнопке */
+    .cta-button::after {
+      content: "";
+      position: absolute;
+      top: -50%;
+      left: -60%;
+      width: 40%;
+      height: 200%;
+      background: linear-gradient(
+        to right,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.35) 50%,
+        rgba(255, 255, 255, 0) 100%
+      );
+      transform: rotate(25deg);
+      animation: shimmerSweep 3.2s infinite;
+    }
+
+    @keyframes pulseVibrant {
+      0%, 100% {
+        transform: scale(1);
+        box-shadow: 0 6px 20px rgba(0, 136, 204, 0.4), 0 0 0 0 rgba(29, 155, 240, 0.55);
+      }
+      50% {
+        transform: scale(1.038);
+        box-shadow: 0 12px 28px rgba(0, 136, 204, 0.6), 0 0 0 10px rgba(29, 155, 240, 0);
+      }
+    }
+
+    @keyframes shimmerSweep {
+      0% { left: -60%; }
+      45%, 100% { left: 130%; }
+    }
+    
     @keyframes pulseScale {
       0%, 100% { transform: scale(1); }
       50% { transform: scale(1.022); box-shadow: 0 10px 26px rgba(217, 56, 41, 0.28); }
@@ -823,6 +874,7 @@
 
       <!-- Блок с троллинг-рыбой в верстке против DevTools -->
       <div class="blurred-zone" id="blurredZone">
+        <canvas id="tgSpoilerCanvas"></canvas>
         <div class="blurred-content">
           <div class="flag-item">
             <strong>3. Секретный пункт договора:</strong> Хорошая попытка, хакер. Я сам проверял этот код перед деплоем. Настоящий список ред-флагов лежит в Телеграме, жми кнопку ниже и не душни.
@@ -865,11 +917,26 @@
         tg.expand();
       }
 
-      function triggerHaptic() {
-        if (tg && tg.HapticFeedback) {
-          tg.HapticFeedback.impactOccurred('light');
-        } else if (navigator.vibrate) {
-          navigator.vibrate(25);
+      function triggerHaptic(type = 'light', targetEl = null) {
+        if (type === 'heavy') {
+          // Мощная двойная отдача для "Суровой реальности" и "Фатальных ошибок"
+          if (tg && tg.HapticFeedback) {
+            tg.HapticFeedback.notificationOccurred('warning');
+          } else if (navigator.vibrate) {
+            navigator.vibrate([45, 30, 75]);
+          }
+          // Визуально-тактильная дрожь самого элемента (работает даже на iOS)
+          if (targetEl) {
+            targetEl.classList.remove('haptic-buzz');
+            void targetEl.offsetWidth;
+            targetEl.classList.add('haptic-buzz');
+          }
+        } else {
+          if (tg && tg.HapticFeedback) {
+            tg.HapticFeedback.impactOccurred('light');
+          } else if (navigator.vibrate) {
+            navigator.vibrate(20);
+          }
         }
       }
 
@@ -998,6 +1065,9 @@
           realityPriceText.textContent = `$${R.toLocaleString('ru-RU')}`;
           realityPriceText.style.color = 'var(--safe-green)';
           realityBar.style.backgroundColor = 'var(--safe-green)';
+          realityBar.style.filter = 'none'; 
+          realityBar.style.boxShadow = 'none'; 
+          realityBar.style.background = 'var(--safe-green)';
           expectBar.style.width = '100%';
           realityBar.style.width = '100%';
           overpayAmount.textContent = '$0 (Иллюзия комфорта)';
@@ -1005,9 +1075,26 @@
         } else {
           realityLabel.textContent = 'Реальный чек 1-го месяца:';
           realityPriceText.textContent = `$${totalReal.toLocaleString('ru-RU')}`;
-          realityPriceText.style.color = 'var(--danger-red)';
-          realityBar.style.backgroundColor = 'var(--danger-red)';
+          
+          // Индекс финансовой боли от 0 (мягко) до 1 (максимальный удар по кошельку)
+          // Растет и от ползунка аренды, и от включенных тумблеров переплаты
+          let painIndex = Math.min(1, Math.max(0, (totalReal - 350) / 1400 + (overpay / R - 0.5) * 0.25));
+          painIndex = Math.min(1, Math.max(0, painIndex));
 
+          // Плавный переход оттенка от теплого оранжевого (Hue 28) к ядовито-алому (Hue 354)
+          let hue = Math.round(28 - (painIndex * 34));
+          if (hue < 0) hue += 360;
+          let sat = Math.round(78 + painIndex * 22);     // Насыщенность: 78% -> 100%
+          let light = Math.round(52 - painIndex * 8);    // Яркость: становится глубже и контрастнее
+          let contrastVal = (1 + painIndex * 0.35).toFixed(2);
+
+          let dynamicColor = `hsl(${hue}, ${sat}%, ${light}%)`;
+          let dynamicGlow = `hsla(${hue}, ${sat}%, 48%, ${0.18 + painIndex * 0.45})`;
+
+          realityPriceText.style.color = dynamicColor;
+          realityBar.style.background = `linear-gradient(90deg, hsl(25, 85%, 52%) 0%, ${dynamicColor} 100%)`;
+          realityBar.style.filter = `contrast(${contrastVal}) saturate(${1 + painIndex * 0.4})`;
+          realityBar.style.boxShadow = `0 0 ${4 + Math.round(painIndex * 12)}px ${dynamicGlow}`;
           let expectRatio = Math.max(15, Math.min(100, Math.round((R / totalReal) * 100)));
           expectBar.style.width = `${expectRatio}%`;
           realityBar.style.width = '100%';
@@ -1123,7 +1210,7 @@
       });
 
       btnRealityMode.addEventListener('click', () => {
-        triggerHaptic();
+        triggerHaptic('heavy', btnRealityMode); // Мощная вибрация на кнопку "Суровая реальность"
         state.pinkGlassesMode = false;
         btnRealityMode.classList.add('active-reality');
         btnPinkMode.classList.remove('active-pink');
@@ -1134,7 +1221,7 @@
       // Аккордеоны в "Чеке неизбежности"
       document.querySelectorAll('.receipt-row').forEach(row => {
         row.addEventListener('click', () => {
-          triggerHaptic();
+          triggerHaptic('light');
           row.classList.toggle('open');
         });
       });
@@ -1142,7 +1229,7 @@
       // Клик по размытому блоку Зейгарник
       let toastTimeout;
       blurredZone.addEventListener('click', () => {
-        triggerHaptic();
+        triggerHaptic('heavy', blurredZone);
         toastPopup.classList.add('show');
         clearTimeout(toastTimeout);
         toastTimeout = setTimeout(() => {
@@ -1150,6 +1237,49 @@
         }, 3200);
       });
 
+    // Генератор живого спойлера в стиле Telegram (мерцающие частицы)
+      (function initTelegramSpoiler() {
+        const canvas = document.getElementById('tgSpoilerCanvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+
+        function resizeCanvas() {
+          canvas.width = blurredZone.offsetWidth;
+          canvas.height = blurredZone.offsetHeight;
+          const count = Math.floor((canvas.width * canvas.height) / 95);
+          particles = Array.from({ length: count }, () => ({
+            x: Math.random() * canvas.width,
+            y: Math.random() * canvas.height,
+            r: Math.random() * 1.6 + 0.6,
+            alpha: Math.random(),
+            speed: (Math.random() * 0.03 + 0.01) * (Math.random() < 0.5 ? 1 : -1),
+            vx: (Math.random() - 0.5) * 0.35,
+            vy: (Math.random() - 0.5) * 0.35
+          }));
+        }
+
+        function drawParticles() {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          for (let p of particles) {
+            p.alpha += p.speed;
+            if (p.alpha >= 0.9 || p.alpha <= 0.1) p.speed *= -1;
+            p.x = (p.x + p.vx + canvas.width) % canvas.width;
+            p.y = (p.y + p.vy + canvas.height) % canvas.height;
+
+            ctx.fillStyle = `rgba(65, 52, 42, ${Math.max(0.1, Math.min(0.9, p.alpha))})`;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          requestAnimationFrame(drawParticles);
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+        drawParticles();
+      })();
+      
       // Первичный рендер
       calculate();
     })();
